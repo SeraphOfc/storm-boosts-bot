@@ -9,7 +9,7 @@
 //
 // Cole essa URL aqui (SEM barra no final):
 //
-const API_BASE = window.STORM_API_BASE || 'https://SUA-URL-DO-RAILWAY.up.railway.app';
+const API_BASE = window.STORM_API_BASE || 'https://storm-boosts-bot-production.up.railway.app';
 
 // ─── Partículas ──────────────────────────────────────────────────────────────
 function initParticles() {
