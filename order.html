@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>STORM BOOSTS — Pedido</title>
+  <meta name="description" content="Acompanhe o status do seu pedido de boosts."/>
+  <meta name="theme-color" content="#000000"/>
+  <link rel="icon" type="image/gif" href="assets/storm_logo.gif"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="assets/style.css"/>
+</head>
+<body>
+
+<div class="particles" id="pts"></div>
+
+<div class="wrap" style="max-width:460px">
+  <div class="logo">
+    <img src="assets/storm_logo.gif" alt="Storm Boosts" class="logo-gif" style="width:64px;height:64px;border-radius:16px"/>
+    <h1>STORM <span>BOOSTS</span></h1>
+  </div>
+
+  <!-- Loading state -->
+  <div class="card" id="loadingCard">
+    <div style="text-align:center;padding:30px 0">
+      <div class="spinner" style="width:28px;height:28px;border-width:3px;border-color:rgba(255,255,255,.15);border-top-color:#fff;margin:0 auto 14px"></div>
+      <p style="color:#666;font-size:13px">Carregando pedido...</p>
+    </div>
+  </div>
+
+  <!-- Order card (hidden until loaded) -->
+  <div class="card" id="orderCard" style="display:none">
+    <div class="order-hdr">
+      <div class="order-title">Detalhes do Pedido</div>
+      <div class="badge" id="statusBadge">...</div>
+    </div>
+    <div class="order-id" id="orderId">—</div>
+
+    <div class="prog-wrap">
+      <div class="prog-lbl"><span>Progresso</span><span id="progPct">0%</span></div>
+      <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-lbl">Boosts</div><div class="stat-val accent" id="sBoosts">—</div></div>
+      <div class="stat"><div class="stat-lbl">Tipo</div><div class="stat-val plain" id="sType">—</div></div>
+      <div class="stat"><div class="stat-lbl">Sucesso</div><div class="stat-val ok" id="sOk">—</div></div>
+      <div class="stat"><div class="stat-lbl">Falhas</div><div class="stat-val fail" id="sFail">—</div></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="info-row"><span class="lbl">Guild ID</span><span class="val" id="iGuild">N/A</span></div>
+    <div class="info-row"><span class="lbl">Taxa de Sucesso</span><span class="val" id="iRate">0%</span></div>
+    <div class="info-row"><span class="lbl">Criado em</span><span class="val" id="iDate">—</span></div>
+
+    <div class="btn-grp" id="btnGrp"></div>
+  </div>
+
+  <!-- Auto-refresh indicator -->
+  <div class="refresh" id="refreshIndicator" style="display:none">
+    <span class="dot-blink"></span>
+    <span>Atualizando automaticamente...</span>
+  </div>
+
+  <!-- Error card -->
+  <div class="card" id="errorCard" style="display:none">
+    <div style="text-align:center;padding:20px 0">
+      <h2 style="font-size:48px;font-weight:800;color:#fff;margin-bottom:8px">404</h2>
+      <p style="color:#555;font-size:14px;margin-bottom:16px">Pedido não encontrado.</p>
+      <a href="index.html" class="btn btn-secondary" style="display:inline-flex;width:auto;padding:10px 24px">&larr; Voltar ao Redeem</a>
+    </div>
+  </div>
+
+  <div class="footer">&copy; 2025 STORM BOOSTS &mdash; by zorvmal</div>
+</div>
+
+<script src="assets/app.js"></script>
+<script>
+const statusMap = {
+  pending:    { label: 'Pendente',     icon: '○', pct: 5,   cls: 'pending'    },
+  processing: { label: 'Processando', icon: '◉', pct: 50,  cls: 'processing' },
+  completed:  { label: 'Concluído',   icon: '●', pct: 100, cls: 'completed'  },
+  failed:     { label: 'Falhou',      icon: '✗', pct: 100, cls: 'failed'     },
+};
+
+let refreshTimer = null;
+
+function renderOrder(order) {
+  const s = statusMap[order.status] || { label: order.status, icon: '◆', pct: 0, cls: '' };
+  const typeLabel = order.boostType === '1m' ? '1 Mês' : '3 Meses';
+  const successRate = order.boostAmount > 0
+    ? Math.round((order.successTokens / Math.ceil(order.boostAmount / 2)) * 100) : 0;
+  const autoRefresh = order.status === 'pending' || order.status === 'processing';
+
+  document.title = 'STORM BOOSTS — Pedido ' + order.orderId;
+
+  // Badge
+  const badge = document.getElementById('statusBadge');
+  badge.textContent = s.icon + ' ' + s.label;
+  badge.className = 'badge ' + s.cls;
+
+  // Order ID
+  document.getElementById('orderId').textContent = order.orderId;
+
+  // Progress
+  document.getElementById('progPct').textContent = s.pct + '%';
+  const fill = document.getElementById('progFill');
+  fill.style.width = s.pct + '%';
+  fill.className = 'prog-fill' + (autoRefresh ? ' animate' : '');
+
+  // Stats
+  document.getElementById('sBoosts').textContent = order.boostAmount;
+  document.getElementById('sType').textContent = typeLabel;
+  document.getElementById('sOk').textContent = order.successTokens;
+  document.getElementById('sFail').textContent = order.failedTokens;
+
+  // Info rows
+  document.getElementById('iGuild').textContent = order.guildId || 'N/A';
+  document.getElementById('iRate').textContent = successRate + '%';
+  document.getElementById('iDate').textContent = new Date(order.createdAt).toLocaleString('pt-BR');
+
+  // Buttons
+  const btnGrp = document.getElementById('btnGrp');
+  btnGrp.innerHTML = '';
+  if (order.guildId) {
+    const a = document.createElement('a');
+    a.href = 'https://discord.com/channels/' + order.guildId;
+    a.target = '_blank';
+    a.className = 'btn btn-primary';
+    a.textContent = 'Entrar no Servidor';
+    btnGrp.appendChild(a);
+  }
+  const back = document.createElement('a');
+  back.href = 'index.html';
+  back.className = 'btn btn-secondary';
+  back.textContent = 'Novo Resgate';
+  btnGrp.appendChild(back);
+
+  // Show card
+  document.getElementById('loadingCard').style.display = 'none';
+  document.getElementById('errorCard').style.display = 'none';
+  document.getElementById('orderCard').style.display = 'block';
+
+  // Auto-refresh
+  document.getElementById('refreshIndicator').style.display = autoRefresh ? 'flex' : 'none';
+
+  if (autoRefresh && !refreshTimer) {
+    refreshTimer = setInterval(loadOrder, 5000);
+  } else if (!autoRefresh && refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
+async function loadOrder() {
+  const orderId = getParam('id');
+  if (!orderId) {
+    showError();
+    return;
+  }
+
+  try {
+    const { response, data } = await apiCall('/api/order/' + orderId);
+    if (!response.ok) {
+      showError();
+      return;
+    }
+    renderOrder(data);
+  } catch (e) {
+    // Se é a primeira carga, mostrar erro. Se é refresh, ignorar.
+    if (document.getElementById('orderCard').style.display === 'none') {
+      showError();
+    }
+  }
+}
+
+function showError() {
+  document.getElementById('loadingCard').style.display = 'none';
+  document.getElementById('orderCard').style.display = 'none';
+  document.getElementById('errorCard').style.display = 'block';
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', loadOrder);
+</script>
+
+</body>
+</html>

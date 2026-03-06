@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>STORM BOOSTS — Resgatar</title>
+  <meta name="description" content="Sistema de Boost Automático para Discord — Resgate seus boosts de forma rápida e segura."/>
+  <meta name="theme-color" content="#000000"/>
+  <link rel="icon" type="image/gif" href="assets/storm_logo.gif"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="assets/style.css"/>
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="STORM BOOSTS"/>
+  <meta property="og:description" content="Sistema de Boost Automático para Discord"/>
+  <meta property="og:image" content="assets/storm_logo.gif"/>
+  <meta property="og:type" content="website"/>
+</head>
+<body>
+
+<div class="particles" id="pts"></div>
+
+<div class="wrap">
+  <div class="logo">
+    <img src="assets/storm_logo.gif" alt="Storm Boosts" class="logo-gif"/>
+    <h1>STORM <span>BOOSTS</span></h1>
+    <p>Sistema de Boost Automático</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Resgatar Pedido</div>
+    <div class="card-sub">Insira sua chave e o link do servidor para iniciar os boosts automaticamente.</div>
+
+    <div class="alert err" id="alertErr"><span>&#10007;</span><span id="errMsg"></span></div>
+    <div class="alert ok"  id="alertOk"><span>&#10003;</span><span id="okMsg"></span></div>
+
+    <form id="frm">
+      <div class="field">
+        <label>Chave Redeem</label>
+        <div class="field-inner">
+          <span class="ico">&#11045;</span>
+          <input type="text" id="key" placeholder="XXXX-XXXX-XXXX" maxlength="14" autocomplete="off" spellcheck="false" required/>
+        </div>
+        <div class="key-status idle" id="keyStatus">
+          <span class="dot"></span>
+          <span id="keyStatusText"></span>
+        </div>
+        <div class="key-info" id="keyInfo">
+          <div class="key-info-row"><span class="lbl">Boosts</span><span class="val" id="kiBoosts">&mdash;</span></div>
+          <div class="key-info-row"><span class="lbl">Duração</span><span class="val" id="kiType">&mdash;</span></div>
+        </div>
+        <div class="fraud-warning" id="fraudWarn">
+          <strong>Possível golpe detectado.</strong> Esta chave não existe no nosso sistema. Se você comprou de terceiros, pode ter sido enganado. Entre em contato com o suporte.
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Link do Servidor</label>
+        <div class="field-inner">
+          <span class="ico">&#11045;</span>
+          <input type="text" id="invite" placeholder="https://discord.gg/seuvite" autocomplete="off" required/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>E-mail (opcional)</label>
+        <div class="field-inner">
+          <span class="ico">&#11045;</span>
+          <input type="email" id="email" placeholder="seuemail@exemplo.com"/>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <button class="btn" type="submit" id="sub" disabled>RESGATAR AGORA</button>
+    </form>
+  </div>
+
+  <div class="footer">&copy; 2025 STORM BOOSTS &mdash; by zorvmal</div>
+</div>
+
+<script src="assets/app.js"></script>
+<script>
+// ─── Estado da validação ─────────────────────────────────────────────────────
+let keyValid = false;
+let checkTimer = null;
+
+const keyInput  = document.getElementById('key');
+const keyStatus = document.getElementById('keyStatus');
+const keyText   = document.getElementById('keyStatusText');
+const keyInfo   = document.getElementById('keyInfo');
+const fraudWarn = document.getElementById('fraudWarn');
+const submitBtn = document.getElementById('sub');
+
+function setKeyState(state, msg) {
+  keyInput.classList.remove('valid','invalid','checking');
+  keyStatus.classList.remove('valid','invalid','checking','idle');
+  keyInfo.classList.remove('show');
+  fraudWarn.classList.remove('show');
+
+  if (state === 'idle') {
+    keyStatus.classList.add('idle');
+    keyValid = false;
+    submitBtn.disabled = true;
+    return;
+  }
+
+  keyInput.classList.add(state);
+  keyStatus.classList.add(state);
+  keyText.textContent = msg;
+
+  if (state === 'valid') {
+    keyValid = true;
+    submitBtn.disabled = false;
+  } else {
+    keyValid = false;
+    submitBtn.disabled = true;
+  }
+}
+
+// ─── Máscara da chave + validação em tempo real ──────────────────────────────
+keyInput.addEventListener('input', function() {
+  let v = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  let o = '';
+  for (let i = 0; i < Math.min(v.length, 12); i++) {
+    if (i === 4 || i === 8) o += '-';
+    o += v[i];
+  }
+  this.value = o;
+
+  if (checkTimer) clearTimeout(checkTimer);
+
+  if (o.length < 14) {
+    setKeyState('idle', '');
+    return;
+  }
+
+  setKeyState('checking', 'Verificando chave...');
+
+  checkTimer = setTimeout(async () => {
+    try {
+      const { response, data } = await apiCall('/api/check-key', {
+        method: 'POST',
+        body: JSON.stringify({ key: o })
+      });
+
+      if (data.status === 'available') {
+        setKeyState('valid', 'Chave válida — ' + data.boosts + ' boosts (' + data.type + ')');
+        document.getElementById('kiBoosts').textContent = data.boosts;
+        document.getElementById('kiType').textContent = data.type;
+        keyInfo.classList.add('show');
+      } else if (data.status === 'used') {
+        setKeyState('invalid', 'Chave já utilizada — não pode ser resgatada novamente');
+      } else {
+        setKeyState('invalid', 'Chave inválida — não encontrada no sistema');
+        fraudWarn.classList.add('show');
+      }
+    } catch (_) {
+      setKeyState('invalid', 'Erro ao verificar — tente novamente');
+    }
+  }, 400);
+});
+
+// ─── Submit ──────────────────────────────────────────────────────────────────
+document.getElementById('frm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  if (!keyValid) return;
+
+  const btn = document.getElementById('sub');
+  const ae  = document.getElementById('alertErr');
+  const ao  = document.getElementById('alertOk');
+  ae.classList.remove('show');
+  ao.classList.remove('show');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Processando...';
+
+  const key    = document.getElementById('key').value.trim();
+  const invite = document.getElementById('invite').value.trim();
+  const email  = document.getElementById('email').value.trim();
+
+  try {
+    const { response, data } = await apiCall('/api/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ key, invite, email })
+    });
+
+    if (!response.ok) {
+      document.getElementById('errMsg').textContent = data.error || 'Erro ao processar.';
+      ae.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = 'RESGATAR AGORA';
+    } else {
+      document.getElementById('okMsg').textContent = 'Pedido criado com sucesso! Redirecionando...';
+      ao.classList.add('show');
+      setTimeout(function() {
+        window.location.href = 'order.html?id=' + data.orderId;
+      }, 1400);
+    }
+  } catch (_) {
+    document.getElementById('errMsg').textContent = 'Falha de conexão. Tente novamente.';
+    ae.classList.add('show');
+    btn.disabled = false;
+    btn.innerHTML = 'RESGATAR AGORA';
+  }
+});
+</script>
+
+</body>
+</html>
